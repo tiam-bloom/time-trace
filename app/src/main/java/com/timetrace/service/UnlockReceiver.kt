@@ -5,20 +5,16 @@ import android.content.Context
 import android.content.Intent
 import com.timetrace.data.local.entity.UnlockRecordEntity
 import com.timetrace.data.repository.UnlockRepository
-import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import javax.inject.Inject
 
-@AndroidEntryPoint
-class UnlockReceiver : BroadcastReceiver() {
-
-    @Inject
-    lateinit var unlockRepository: UnlockRepository
+class UnlockReceiver(
+    private val unlockRepository: UnlockRepository
+) : BroadcastReceiver() {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
