@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">时迹</string>
+    <string name="accessibility_service_description">时迹需要此权限来统计APP点击次数</string>
+</resources>
