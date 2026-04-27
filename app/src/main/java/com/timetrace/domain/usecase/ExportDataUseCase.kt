@@ -33,22 +33,25 @@ class ExportDataUseCase @Inject constructor(
     suspend fun exportToCsv(startDate: String, endDate: String): File? = withContext(Dispatchers.IO) {
         try {
             val usageRecords = usageRecordDao.getUsageRecordsBetweenDates(startDate, endDate).first()
-            val clickRecords = clickRecordDao.getDailyClickSummary(startDate).first()
-            val unlockCount = unlockRecordDao.getUnlockCountBetweenDates(startDate, endDate).first()
+            val clickRecords = clickRecordDao.getWeeklyClickSummary(startDate, endDate).first()
+            val apps = appInfoDao.getAllAppsOnce()
 
             val fileName = "timetrace_export_${startDate}_${endDate}.csv"
             val file = File(context.cacheDir, fileName)
 
             FileWriter(file).use { writer ->
-                writer.append("date,package,usage_time_ms,click_count\n")
+                writer.append("date,app_name,package,usage_hours,click_count\n")
 
                 val clickMap = clickRecords.associate { it.packageName to it.clickCount }
+                val appNameMap = apps.associate { it.packageName to it.appName }
 
                 usageRecords.groupBy { it.date }.forEach { (date, records) ->
                     records.groupBy { it.packageName }.forEach { (packageName, packageRecords) ->
                         val totalUsage = packageRecords.sumOf { it.duration }
+                        val usageHours = "%.2f".format(totalUsage / 3600000.0)
                         val clicks = clickMap[packageName] ?: 0
-                        writer.append("$date,$packageName,$totalUsage,$clicks\n")
+                        val appName = appNameMap[packageName] ?: packageName
+                        writer.append("$date,$appName,$packageName,$usageHours,$clicks\n")
                     }
                 }
             }
