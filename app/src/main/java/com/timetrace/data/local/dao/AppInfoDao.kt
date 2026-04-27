@@ -14,6 +14,9 @@ interface AppInfoDao {
     @Query("SELECT * FROM app_info ORDER BY lastSeenTime DESC")
     fun getAllApps(): Flow<List<AppInfoEntity>>
 
+    @Query("SELECT * FROM app_info ORDER BY lastSeenTime DESC")
+    suspend fun getAllAppsOnce(): List<AppInfoEntity>
+
     @Query("SELECT * FROM app_info WHERE packageName = :packageName")
     suspend fun getAppByPackage(packageName: String): AppInfoEntity?
 
@@ -34,4 +37,7 @@ interface AppInfoDao {
 
     @Query("UPDATE app_info SET lastSeenTime = :timestamp WHERE packageName = :packageName")
     suspend fun updateLastSeenTime(packageName: String, timestamp: Long)
+
+    @Query("DELETE FROM app_info")
+    suspend fun deleteAll()
 }

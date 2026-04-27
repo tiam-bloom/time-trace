@@ -1,5 +1,7 @@
 package com.timetrace.ui.viewmodel
 
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.timetrace.data.local.dao.PackageDuration
@@ -10,6 +12,7 @@ import com.timetrace.data.repository.UsageRepository
 import com.timetrace.domain.model.AppUsageInfo
 import com.timetrace.service.UsageStatsService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,7 +39,8 @@ class DashboardViewModel @Inject constructor(
     private val clickRepository: ClickRepository,
     private val unlockRepository: UnlockRepository,
     private val appRepository: AppRepository,
-    private val usageStatsService: UsageStatsService
+    private val usageStatsService: UsageStatsService,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -60,6 +64,8 @@ class DashboardViewModel @Inject constructor(
                     e.printStackTrace()
                 }
             }
+            // Refresh all app names from PackageManager
+            appRepository.refreshAllAppNames()
             // Then reload data from database
             loadDashboardData()
             _uiState.value = _uiState.value.copy(isRefreshing = false)
@@ -92,12 +98,27 @@ class DashboardViewModel @Inject constructor(
 
     private suspend fun PackageDuration.toAppUsageInfo(): AppUsageInfo {
         val app = appRepository.getAppByPackage(packageName)
+        val appName = if (app != null && app.appName != app.packageName) {
+            app.appName
+        } else {
+            getAppNameFromPackageManager(packageName)
+        }
         return AppUsageInfo(
             packageName = packageName,
-            appName = app?.appName ?: packageName,
+            appName = appName,
             usageTime = totalDuration,
             clickCount = 0,
             isUninstalled = app?.isUninstalled ?: false
         )
+    }
+
+    private fun getAppNameFromPackageManager(packageName: String): String {
+        return try {
+            val pm = context.packageManager
+            val appInfo = pm.getApplicationInfo(packageName, 0)
+            pm.getApplicationLabel(appInfo).toString()
+        } catch (e: PackageManager.NameNotFoundException) {
+            packageName
+        }
     }
 }

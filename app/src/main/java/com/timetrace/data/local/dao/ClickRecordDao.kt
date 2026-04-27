@@ -42,6 +42,9 @@ interface ClickRecordDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecords(records: List<ClickRecordEntity>)
+
+    @Query("DELETE FROM click_record")
+    suspend fun deleteAll()
 }
 
 data class PackageClickCount(

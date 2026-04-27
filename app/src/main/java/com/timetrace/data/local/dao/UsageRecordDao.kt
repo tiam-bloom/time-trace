@@ -58,6 +58,9 @@ interface UsageRecordDao {
 
     @Query("SELECT SUM(duration) FROM usage_record WHERE date = :date")
     fun getTotalUsageTimeByDate(date: String): Flow<Long?>
+
+    @Query("DELETE FROM usage_record")
+    suspend fun deleteAll()
 }
 
 data class PackageDuration(

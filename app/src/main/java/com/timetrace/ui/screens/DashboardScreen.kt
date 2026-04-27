@@ -2,6 +2,7 @@ package com.timetrace.ui.screens
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -28,9 +29,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.timetrace.ui.components.AppListItem
 import com.timetrace.ui.components.SimpleBarChart
 import com.timetrace.ui.components.StatCard
@@ -44,10 +48,18 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    DisposableEffect(Unit) {
-        viewModel.refreshData()
-        onDispose { }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshData()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     Scaffold(
@@ -66,100 +78,106 @@ fun DashboardScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        if (uiState.isLoading) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    Text(
-                        text = "今日概览",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            if (uiState.isLoading) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
-
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        StatCard(
-                            title = "使用时长",
-                            value = formatUsageTime(uiState.todayUsageTime),
-                            modifier = Modifier.weight(1f)
-                        )
-                        StatCard(
-                            title = "解锁次数",
-                            value = "${uiState.todayUnlocks}",
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                item {
-                    StatCard(
-                        title = "点击次数",
-                        value = "${uiState.todayClicks}"
-                    )
-                }
-
-                if (uiState.topApps.isNotEmpty()) {
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     item {
-                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "使用排行",
+                            text = "今日概览",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    val chartData = uiState.topApps.take(7).mapIndexed { index, app ->
-                        (index + 1).toString() to app.usageTime
-                    }
-
-                    if (chartData.isNotEmpty()) {
-                        item {
-                            SimpleBarChart(
-                                data = chartData,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp)
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            StatCard(
+                                title = "使用时长",
+                                value = formatUsageTime(uiState.todayUsageTime),
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatCard(
+                                title = "解锁次数",
+                                value = "${uiState.todayUnlocks}",
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
-                }
 
-                itemsIndexed(uiState.topApps) { index, app ->
-                    AppListItem(
-                        app = app,
-                        rank = index + 1
-                    )
-                }
-
-                if (!uiState.hasUsagePermission) {
                     item {
-                        PermissionCard(
-                            message = "请授予使用统计权限以查看使用数据",
-                            onClick = {
-                                val intent = Intent("android.settings.USAGE_ACCESS_SETTINGS")
-                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                context.startActivity(intent)
-                            }
+                        StatCard(
+                            title = "点击次数",
+                            value = "${uiState.todayClicks}"
                         )
+                    }
+
+                    if (uiState.topApps.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "使用排行",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        val chartData = uiState.topApps.take(7).mapIndexed { index, app ->
+                            (index + 1).toString() to app.usageTime
+                        }
+
+                        if (chartData.isNotEmpty()) {
+                            item {
+                                SimpleBarChart(
+                                    data = chartData,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    itemsIndexed(uiState.topApps) { index, app ->
+                        AppListItem(
+                            app = app,
+                            rank = index + 1
+                        )
+                    }
+
+                    if (!uiState.hasUsagePermission) {
+                        item {
+                            PermissionCard(
+                                message = "请授予使用统计权限以查看使用数据",
+                                onClick = {
+                                    val intent = Intent("android.settings.USAGE_ACCESS_SETTINGS")
+                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(80.dp))
                     }
                 }
             }

@@ -50,6 +50,7 @@ class AppListViewModel @Inject constructor(
                     e.printStackTrace()
                 }
             }
+            appRepository.refreshAllAppNames()
             loadAppList()
         }
     }

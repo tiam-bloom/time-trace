@@ -46,9 +46,7 @@ class UsageStatsService @Inject constructor(
         while (events.hasNextEvent()) {
             events.getNextEvent(eventBuilder)
             if (eventBuilder.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
-                eventBuilder.eventType == UsageEvents.Event.MOVE_TO_BACKGROUND ||
-                eventBuilder.eventType == UsageEvents.Event.ACTIVITY_RESUMED ||
-                eventBuilder.eventType == UsageEvents.Event.ACTIVITY_PAUSED
+                eventBuilder.eventType == UsageEvents.Event.MOVE_TO_BACKGROUND
             ) {
                 eventList.add(
                     EventData(
@@ -68,43 +66,42 @@ class UsageStatsService @Inject constructor(
 
         val sortedEvents = events.sortedBy { it.timeMillis }
         var currentPackage: String? = null
-        var foregroundTime: Long = 0
+        var foregroundStartTime: Long = 0
 
         for (event in sortedEvents) {
             val packageName = event.packageName
             if (packageName.isEmpty()) continue
 
             when (event.eventType) {
-                UsageEvents.Event.MOVE_TO_FOREGROUND,
-                UsageEvents.Event.ACTIVITY_RESUMED -> {
-                    if (currentPackage != null && foregroundTime > 0) {
-                        val duration = event.timeMillis - foregroundTime
+                UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                    if (currentPackage != null && foregroundStartTime > 0) {
+                        val duration = event.timeMillis - foregroundStartTime
                         if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
-                            saveUsageRecord(currentPackage, foregroundTime, event.timeMillis, duration)
+                            saveUsageRecord(currentPackage, foregroundStartTime, event.timeMillis, duration)
                         }
                     }
                     currentPackage = packageName
-                    foregroundTime = event.timeMillis
+                    foregroundStartTime = event.timeMillis
                 }
 
-                UsageEvents.Event.MOVE_TO_BACKGROUND,
-                UsageEvents.Event.ACTIVITY_PAUSED -> {
-                    if (packageName == currentPackage && foregroundTime > 0) {
-                        val duration = event.timeMillis - foregroundTime
+                UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                    if (packageName == currentPackage && foregroundStartTime > 0) {
+                        val duration = event.timeMillis - foregroundStartTime
                         if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
-                            saveUsageRecord(packageName, foregroundTime, event.timeMillis, duration)
+                            saveUsageRecord(packageName, foregroundStartTime, event.timeMillis, duration)
                         }
                         currentPackage = null
-                        foregroundTime = 0
+                        foregroundStartTime = 0
                     }
                 }
             }
         }
 
-        if (currentPackage != null && foregroundTime > 0) {
-            val duration = System.currentTimeMillis() - foregroundTime
-            if (duration > 0 && duration < 60 * 60 * 1000) {
-                saveUsageRecord(currentPackage, foregroundTime, System.currentTimeMillis(), duration)
+        if (currentPackage != null && foregroundStartTime > 0) {
+            val now = System.currentTimeMillis()
+            val duration = now - foregroundStartTime
+            if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
+                saveUsageRecord(currentPackage, foregroundStartTime, now, duration)
             }
         }
     }

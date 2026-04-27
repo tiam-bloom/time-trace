@@ -24,4 +24,7 @@ interface UnlockRecordDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecords(records: List<UnlockRecordEntity>)
+
+    @Query("DELETE FROM unlock_record")
+    suspend fun deleteAll()
 }
