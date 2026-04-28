@@ -41,6 +41,10 @@ class UsageRepository @Inject constructor(
         return usageRecordDao.getDailyTotals(startDate, endDate)
     }
 
+    fun getPackageDailyTotals(packageName: String, startDate: String, endDate: String): Flow<List<DailyTotal>> {
+        return usageRecordDao.getPackageDailyTotals(packageName, startDate, endDate)
+    }
+
     fun getTotalUsageTimeByDate(date: String): Flow<Long?> {
         return usageRecordDao.getTotalUsageTimeByDate(date)
     }

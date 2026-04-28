@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -26,21 +29,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.timetrace.ui.components.AppListItem
+import com.timetrace.ui.components.AppIcon
 import com.timetrace.ui.components.SimpleBarChart
 import com.timetrace.ui.components.StatCard
 import com.timetrace.ui.components.formatUsageTime
-import com.timetrace.ui.navigation.Screen
+import com.timetrace.ui.viewmodel.AppDetailViewModel
 import com.timetrace.ui.viewmodel.StatsPeriod
-import com.timetrace.ui.viewmodel.StatsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen(
-    onNavigateToAppDetail: (String, String, String) -> Unit,
-    viewModel: StatsViewModel = hiltViewModel()
+fun AppDetailScreen(
+    onBack: () -> Unit,
+    viewModel: AppDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -49,9 +52,19 @@ fun StatsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "使用统计",
-                        fontWeight = FontWeight.Bold
+                        text = uiState.appName.ifEmpty { "应用详情" },
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回"
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
@@ -81,17 +94,35 @@ fun StatsScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    PeriodSelector(
-                        selectedPeriod = uiState.selectedPeriod,
-                        onPeriodSelected = { viewModel.selectPeriod(it) }
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppIcon(
+                            packageName = uiState.packageName,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Column {
+                            Text(
+                                text = uiState.appName,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = periodLabel(uiState.period),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         StatCard(
-                            title = periodTotalLabel(uiState.selectedPeriod),
+                            title = periodTotalLabel(uiState.period),
                             value = formatUsageTime(uiState.totalUsageTime),
                             modifier = Modifier.weight(1f)
                         )
@@ -103,7 +134,7 @@ fun StatsScreen(
                     }
 
                     if (uiState.chartData.isNotEmpty()) {
-                        val barWidth = when (uiState.selectedPeriod) {
+                        val barWidth = when (uiState.period) {
                             StatsPeriod.DAY -> 20.dp
                             StatsPeriod.WEEK -> 40.dp
                             StatsPeriod.MONTH -> 12.dp
@@ -118,73 +149,25 @@ fun StatsScreen(
                         )
 
                         Text(
-                            text = chartHint(uiState.selectedPeriod),
+                            text = chartHint(uiState.period),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
                     }
 
-                    if (uiState.appUsageList.isNotEmpty()) {
-                        Text(
-                            text = "应用排行",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        uiState.appUsageList.forEachIndexed { index, app ->
-                            AppListItem(
-                                app = app,
-                                rank = index + 1,
-                                onClick = {
-                                    onNavigateToAppDetail(
-                                        app.packageName,
-                                        uiState.selectedPeriod.name,
-                                        app.appName
-                                    )
-                                }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(80.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
     }
 }
 
-@Composable
-private fun PeriodSelector(
-    selectedPeriod: StatsPeriod,
-    onPeriodSelected: (StatsPeriod) -> Unit
-) {
-    val periods = listOf(
-        StatsPeriod.DAY to "日",
-        StatsPeriod.WEEK to "周",
-        StatsPeriod.MONTH to "月"
-    )
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        periods.forEach { (period, label) ->
-            FilterChip(
-                selected = selectedPeriod == period,
-                onClick = { onPeriodSelected(period) },
-                label = {
-                    Text(
-                        text = label,
-                        fontWeight = if (selectedPeriod == period) FontWeight.Bold else FontWeight.Normal
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        }
+private fun periodLabel(period: StatsPeriod): String {
+    return when (period) {
+        StatsPeriod.DAY -> "日统计视图"
+        StatsPeriod.WEEK -> "周统计视图"
+        StatsPeriod.MONTH -> "月统计视图"
     }
 }
 
