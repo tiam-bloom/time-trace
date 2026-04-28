@@ -2,6 +2,7 @@ package com.timetrace.ui.viewmodel
 
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.timetrace.data.local.dao.DailyTotal
@@ -11,11 +12,13 @@ import com.timetrace.data.repository.UsageRepository
 import com.timetrace.domain.model.AppUsageInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -24,6 +27,7 @@ import javax.inject.Inject
 
 enum class StatsPeriod { DAY, WEEK, MONTH }
 
+@Immutable
 data class StatsUiState(
     val selectedPeriod: StatsPeriod = StatsPeriod.WEEK,
     val chartData: List<Pair<String, Long>> = emptyList(),
@@ -41,6 +45,11 @@ class StatsViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val dateLabelFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
+    private val dayOnlyFormat = SimpleDateFormat("d", Locale.getDefault())
+    private val calendar = Calendar.getInstance()
+    private val appNameCache = mutableMapOf<String, String>()
+
     private val _uiState = MutableStateFlow(StatsUiState())
     val uiState: StateFlow<StatsUiState> = _uiState.asStateFlow()
 
@@ -72,26 +81,28 @@ class StatsViewModel @Inject constructor(
                 usageRepository.getUsageRecordsByDate(today),
                 usageRepository.getDailyUsageSummary(today)
             ) { records, packageDurations ->
-                val hourlyMap = mutableMapOf<Int, Long>()
-                val cal = Calendar.getInstance()
-                records.forEach { record ->
-                    cal.timeInMillis = record.startTime
-                    val hour = cal.get(Calendar.HOUR_OF_DAY)
-                    hourlyMap[hour] = (hourlyMap[hour] ?: 0) + record.duration
+                withContext(Dispatchers.Default) {
+                    val hourlyMap = mutableMapOf<Int, Long>()
+                    val cal = Calendar.getInstance()
+                    records.forEach { record ->
+                        cal.timeInMillis = record.startTime
+                        val hour = cal.get(Calendar.HOUR_OF_DAY)
+                        hourlyMap[hour] = (hourlyMap[hour] ?: 0) + record.duration
+                    }
+                    val chartData = (0..23).map { hour ->
+                        "$hour" to (hourlyMap[hour] ?: 0)
+                    }
+                    val total = chartData.sumOf { it.second }
+                    val appList = packageDurations.map { it.toAppUsageInfo() }
+                    StatsUiState(
+                        selectedPeriod = StatsPeriod.DAY,
+                        chartData = chartData,
+                        totalUsageTime = total,
+                        averageDailyTime = total,
+                        appUsageList = appList,
+                        isLoading = false
+                    )
                 }
-                val chartData = (0..23).map { hour ->
-                    "$hour" to (hourlyMap[hour] ?: 0)
-                }
-                val total = chartData.sumOf { it.second }
-                val appList = packageDurations.map { it.toAppUsageInfo() }
-                StatsUiState(
-                    selectedPeriod = StatsPeriod.DAY,
-                    chartData = chartData,
-                    totalUsageTime = total,
-                    averageDailyTime = total,
-                    appUsageList = appList,
-                    isLoading = false
-                )
             }.collect { state ->
                 _uiState.value = state
             }
@@ -107,18 +118,20 @@ class StatsViewModel @Inject constructor(
                 usageRepository.getDailyTotals(startDate, endDate),
                 usageRepository.getWeeklyUsageSummary(startDate, endDate)
             ) { dailyTotals, packageDurations ->
-                val chartData = fillMissingDates(dailyTotals, startDate, endDate, labelInterval)
-                val total = chartData.sumOf { it.second }
-                val days = chartData.size
-                val appList = packageDurations.map { it.toAppUsageInfo() }
-                StatsUiState(
-                    selectedPeriod = _uiState.value.selectedPeriod,
-                    chartData = chartData,
-                    totalUsageTime = total,
-                    averageDailyTime = if (days > 0) total / days else 0,
-                    appUsageList = appList,
-                    isLoading = false
-                )
+                withContext(Dispatchers.Default) {
+                    val chartData = fillMissingDates(dailyTotals, startDate, endDate, labelInterval)
+                    val total = chartData.sumOf { it.second }
+                    val days = chartData.size
+                    val appList = packageDurations.map { it.toAppUsageInfo() }
+                    StatsUiState(
+                        selectedPeriod = _uiState.value.selectedPeriod,
+                        chartData = chartData,
+                        totalUsageTime = total,
+                        averageDailyTime = if (days > 0) total / days else 0,
+                        appUsageList = appList,
+                        isLoading = false
+                    )
+                }
             }.collect { state ->
                 _uiState.value = state
             }
@@ -132,13 +145,11 @@ class StatsViewModel @Inject constructor(
         labelInterval: Int = 1
     ): List<Pair<String, Long>> {
         val dataMap = dailyTotals.associate { it.date to it.totalDuration }
-        val cal = Calendar.getInstance()
+        val cal = calendar.clone() as Calendar
         cal.time = dateFormat.parse(startDate)!!
-        val endCal = Calendar.getInstance()
+        val endCal = calendar.clone() as Calendar
         endCal.time = dateFormat.parse(endDate)!!
 
-        val dateLabelFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
-        val dayOnlyFormat = SimpleDateFormat("d", Locale.getDefault())
         var dayIndex = 0
         val result = mutableListOf<Pair<String, Long>>()
         while (!cal.after(endCal)) {
@@ -156,7 +167,7 @@ class StatsViewModel @Inject constructor(
     }
 
     private fun getPastDaysRange(daysBack: Int): Pair<String, String> {
-        val cal = Calendar.getInstance()
+        val cal = calendar.clone() as Calendar
         val endDate = dateFormat.format(cal.time)
         cal.add(Calendar.DAY_OF_MONTH, -daysBack)
         val startDate = dateFormat.format(cal.time)
@@ -168,7 +179,9 @@ class StatsViewModel @Inject constructor(
         val appName = if (app != null && app.appName != app.packageName) {
             app.appName
         } else {
-            getAppNameFromPackageManager(packageName)
+            appNameCache.getOrPut(packageName) {
+                withContext(Dispatchers.IO) { getAppNameFromPackageManager(packageName) }
+            }
         }
         return AppUsageInfo(
             packageName = packageName,

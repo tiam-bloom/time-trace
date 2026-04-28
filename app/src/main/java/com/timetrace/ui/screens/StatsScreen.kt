@@ -3,14 +3,15 @@ package com.timetrace.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -74,32 +75,34 @@ fun StatsScreen(
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    PeriodSelector(
-                        selectedPeriod = uiState.selectedPeriod,
-                        onPeriodSelected = { viewModel.selectPeriod(it) }
-                    )
+                    item {
+                        PeriodSelector(
+                            selectedPeriod = uiState.selectedPeriod,
+                            onPeriodSelected = { viewModel.selectPeriod(it) }
+                        )
+                    }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        StatCard(
-                            title = periodTotalLabel(uiState.selectedPeriod),
-                            value = formatUsageTime(uiState.totalUsageTime),
-                            modifier = Modifier.weight(1f)
-                        )
-                        StatCard(
-                            title = "日均时长",
-                            value = formatUsageTime(uiState.averageDailyTime),
-                            modifier = Modifier.weight(1f)
-                        )
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            StatCard(
+                                title = periodTotalLabel(uiState.selectedPeriod),
+                                value = formatUsageTime(uiState.totalUsageTime),
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatCard(
+                                title = "日均时长",
+                                value = formatUsageTime(uiState.averageDailyTime),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
 
                     if (uiState.chartData.isNotEmpty()) {
@@ -109,30 +112,39 @@ fun StatsScreen(
                             StatsPeriod.MONTH -> 12.dp
                         }
 
-                        SimpleBarChart(
-                            data = uiState.chartData,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp),
-                            barWidth = barWidth
-                        )
+                        item {
+                            SimpleBarChart(
+                                data = uiState.chartData,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(220.dp),
+                                barWidth = barWidth
+                            )
+                        }
 
-                        Text(
-                            text = chartHint(uiState.selectedPeriod),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        )
+                        item {
+                            Text(
+                                text = chartHint(uiState.selectedPeriod),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                        }
                     }
 
                     if (uiState.appUsageList.isNotEmpty()) {
-                        Text(
-                            text = "应用排行",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        item {
+                            Text(
+                                text = "应用排行",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
 
-                        uiState.appUsageList.forEachIndexed { index, app ->
+                        itemsIndexed(
+                            items = uiState.appUsageList,
+                            key = { _, app -> app.packageName }
+                        ) { index, app ->
                             AppListItem(
                                 app = app,
                                 rank = index + 1,
@@ -147,7 +159,9 @@ fun StatsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(80.dp))
+                    item {
+                        Spacer(modifier = Modifier.height(80.dp))
+                    }
                 }
             }
         }

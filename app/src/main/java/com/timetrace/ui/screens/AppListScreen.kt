@@ -106,7 +106,10 @@ fun AppListScreen(
                         }
                     }
 
-                    itemsIndexed(uiState.apps) { index, app ->
+                    itemsIndexed(
+                        items = uiState.apps,
+                        key = { _, app -> app.packageName }
+                    ) { index, app ->
                         AppListItem(
                             app = app,
                             rank = index + 1

@@ -156,7 +156,10 @@ fun DashboardScreen(
                         }
                     }
 
-                    itemsIndexed(uiState.topApps) { index, app ->
+                    itemsIndexed(
+                        items = uiState.topApps,
+                        key = { _, app -> app.packageName }
+                    ) { index, app ->
                         AppListItem(
                             app = app,
                             rank = index + 1

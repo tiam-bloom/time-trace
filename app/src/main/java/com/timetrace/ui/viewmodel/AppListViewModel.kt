@@ -1,5 +1,6 @@
 package com.timetrace.ui.viewmodel
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.timetrace.data.repository.AppRepository
@@ -8,16 +9,19 @@ import com.timetrace.data.repository.UsageRepository
 import com.timetrace.domain.model.AppUsageInfo
 import com.timetrace.service.UsageStatsService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
+@Immutable
 data class AppListUiState(
     val apps: List<AppUsageInfo> = emptyList(),
     val isLoading: Boolean = true
@@ -62,18 +66,20 @@ class AppListViewModel @Inject constructor(
                 clickRepository.getDailyClickSummary(today),
                 appRepository.getAllApps()
             ) { usageSummary, clickSummary, apps ->
-                val appUsageMap = usageSummary.associate { it.packageName to it.totalDuration }
-                val clickCountMap = clickSummary.associate { it.packageName to it.clickCount }
+                withContext(Dispatchers.Default) {
+                    val appUsageMap = usageSummary.associate { it.packageName to it.totalDuration }
+                    val clickCountMap = clickSummary.associate { it.packageName to it.clickCount }
 
-                apps.map { appEntity ->
-                    AppUsageInfo(
-                        packageName = appEntity.packageName,
-                        appName = appEntity.appName,
-                        usageTime = appUsageMap[appEntity.packageName] ?: 0,
-                        clickCount = clickCountMap[appEntity.packageName] ?: 0,
-                        isUninstalled = appEntity.isUninstalled
-                    )
-                }.sortedByDescending { it.usageTime }
+                    apps.map { appEntity ->
+                        AppUsageInfo(
+                            packageName = appEntity.packageName,
+                            appName = appEntity.appName,
+                            usageTime = appUsageMap[appEntity.packageName] ?: 0,
+                            clickCount = clickCountMap[appEntity.packageName] ?: 0,
+                            isUninstalled = appEntity.isUninstalled
+                        )
+                    }.sortedByDescending { it.usageTime }
+                }
             }.collect { appList ->
                 _uiState.value = AppListUiState(
                     apps = appList,

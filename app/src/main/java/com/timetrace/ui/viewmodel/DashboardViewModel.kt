@@ -2,6 +2,7 @@ package com.timetrace.ui.viewmodel
 
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.timetrace.data.local.dao.PackageDuration
@@ -13,16 +14,19 @@ import com.timetrace.domain.model.AppUsageInfo
 import com.timetrace.service.UsageStatsService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
+@Immutable
 data class DashboardUiState(
     val todayUsageTime: Long = 0,
     val todayClicks: Int = 0,
@@ -45,6 +49,7 @@ class DashboardViewModel @Inject constructor(
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val today = dateFormat.format(Date())
+    private val appNameCache = mutableMapOf<String, String>()
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
@@ -56,7 +61,6 @@ class DashboardViewModel @Inject constructor(
     fun refreshData() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isRefreshing = true)
-            // First collect fresh usage stats from system
             if (usageStatsService.hasUsageStatsPermission()) {
                 try {
                     usageStatsService.collectUsageStats()
@@ -64,9 +68,8 @@ class DashboardViewModel @Inject constructor(
                     e.printStackTrace()
                 }
             }
-            // Refresh all app names from PackageManager
             appRepository.refreshAllAppNames()
-            // Then reload data from database
+            appNameCache.clear()
             loadDashboardData()
             _uiState.value = _uiState.value.copy(isRefreshing = false)
         }
@@ -82,14 +85,16 @@ class DashboardViewModel @Inject constructor(
                 unlockRepository.getUnlockCountByDate(today),
                 usageRepository.getTopApps(today, 5)
             ) { usageTime, clicks, unlocks, topApps ->
-                DashboardUiState(
-                    todayUsageTime = usageTime ?: 0,
-                    todayClicks = clicks,
-                    todayUnlocks = unlocks,
-                    topApps = topApps.map { it.toAppUsageInfo() },
-                    isLoading = false,
-                    hasUsagePermission = hasPermission
-                )
+                withContext(Dispatchers.Default) {
+                    DashboardUiState(
+                        todayUsageTime = usageTime ?: 0,
+                        todayClicks = clicks,
+                        todayUnlocks = unlocks,
+                        topApps = topApps.map { it.toAppUsageInfo() },
+                        isLoading = false,
+                        hasUsagePermission = hasPermission
+                    )
+                }
             }.collect { state ->
                 _uiState.value = state
             }
@@ -101,7 +106,9 @@ class DashboardViewModel @Inject constructor(
         val appName = if (app != null && app.appName != app.packageName) {
             app.appName
         } else {
-            getAppNameFromPackageManager(packageName)
+            appNameCache.getOrPut(packageName) {
+                withContext(Dispatchers.IO) { getAppNameFromPackageManager(packageName) }
+            }
         }
         return AppUsageInfo(
             packageName = packageName,

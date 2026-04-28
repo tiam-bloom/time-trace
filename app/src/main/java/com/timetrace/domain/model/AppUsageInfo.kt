@@ -1,5 +1,8 @@
 package com.timetrace.domain.model
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class AppUsageInfo(
     val packageName: String,
     val appName: String,

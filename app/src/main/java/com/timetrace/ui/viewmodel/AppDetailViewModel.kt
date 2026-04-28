@@ -2,6 +2,7 @@ package com.timetrace.ui.viewmodel
 
 import android.content.Context
 import android.content.pm.PackageManager
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,16 +11,19 @@ import com.timetrace.data.repository.AppRepository
 import com.timetrace.data.repository.UsageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
+@Immutable
 data class AppDetailUiState(
     val packageName: String = "",
     val appName: String = "",
@@ -43,6 +47,10 @@ class AppDetailViewModel @Inject constructor(
     private val period = StatsPeriod.valueOf(periodName)
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val dateLabelFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
+    private val dayOnlyFormat = SimpleDateFormat("d", Locale.getDefault())
+    private val calendar = Calendar.getInstance()
+
     private val _uiState = MutableStateFlow(AppDetailUiState())
     val uiState: StateFlow<AppDetailUiState> = _uiState.asStateFlow()
 
@@ -56,7 +64,7 @@ class AppDetailViewModel @Inject constructor(
             val appName = if (app != null && app.appName != app.packageName) {
                 app.appName
             } else {
-                getAppNameFromPackageManager(packageName)
+                withContext(Dispatchers.IO) { getAppNameFromPackageManager(packageName) }
             }
 
             val today = dateFormat.format(Date())
@@ -70,27 +78,30 @@ class AppDetailViewModel @Inject constructor(
 
     private suspend fun loadDayData(today: String, appName: String) {
         usageRepository.getUsageRecordsByDate(today).collect { records ->
-            val filtered = records.filter { it.packageName == packageName }
-            val hourlyMap = mutableMapOf<Int, Long>()
-            val cal = Calendar.getInstance()
-            filtered.forEach { record ->
-                cal.timeInMillis = record.startTime
-                val hour = cal.get(Calendar.HOUR_OF_DAY)
-                hourlyMap[hour] = (hourlyMap[hour] ?: 0) + record.duration
+            val state = withContext(Dispatchers.Default) {
+                val filtered = records.filter { it.packageName == packageName }
+                val hourlyMap = mutableMapOf<Int, Long>()
+                val cal = Calendar.getInstance()
+                filtered.forEach { record ->
+                    cal.timeInMillis = record.startTime
+                    val hour = cal.get(Calendar.HOUR_OF_DAY)
+                    hourlyMap[hour] = (hourlyMap[hour] ?: 0) + record.duration
+                }
+                val chartData = (0..23).map { hour ->
+                    "$hour" to (hourlyMap[hour] ?: 0)
+                }
+                val total = chartData.sumOf { it.second }
+                AppDetailUiState(
+                    packageName = packageName,
+                    appName = appName,
+                    period = period,
+                    chartData = chartData,
+                    totalUsageTime = total,
+                    averageDailyTime = total,
+                    isLoading = false
+                )
             }
-            val chartData = (0..23).map { hour ->
-                "$hour" to (hourlyMap[hour] ?: 0)
-            }
-            val total = chartData.sumOf { it.second }
-            _uiState.value = AppDetailUiState(
-                packageName = packageName,
-                appName = appName,
-                period = period,
-                chartData = chartData,
-                totalUsageTime = total,
-                averageDailyTime = total,
-                isLoading = false
-            )
+            _uiState.value = state
         }
     }
 
@@ -99,18 +110,21 @@ class AppDetailViewModel @Inject constructor(
         val isMonth = period == StatsPeriod.MONTH
         val labelInterval = if (isMonth) 5 else 1
         usageRepository.getPackageDailyTotals(packageName, startDate, endDate).collect { dailyTotals ->
-            val chartData = fillMissingDates(dailyTotals, startDate, endDate, labelInterval)
-            val total = chartData.sumOf { it.second }
-            val days = chartData.size
-            _uiState.value = AppDetailUiState(
-                packageName = packageName,
-                appName = appName,
-                period = period,
-                chartData = chartData,
-                totalUsageTime = total,
-                averageDailyTime = if (days > 0) total / days else 0,
-                isLoading = false
-            )
+            val state = withContext(Dispatchers.Default) {
+                val chartData = fillMissingDates(dailyTotals, startDate, endDate, labelInterval)
+                val total = chartData.sumOf { it.second }
+                val days = chartData.size
+                AppDetailUiState(
+                    packageName = packageName,
+                    appName = appName,
+                    period = period,
+                    chartData = chartData,
+                    totalUsageTime = total,
+                    averageDailyTime = if (days > 0) total / days else 0,
+                    isLoading = false
+                )
+            }
+            _uiState.value = state
         }
     }
 
@@ -121,13 +135,11 @@ class AppDetailViewModel @Inject constructor(
         labelInterval: Int = 1
     ): List<Pair<String, Long>> {
         val dataMap = dailyTotals.associate { it.date to it.totalDuration }
-        val cal = Calendar.getInstance()
+        val cal = calendar.clone() as Calendar
         cal.time = dateFormat.parse(startDate)!!
-        val endCal = Calendar.getInstance()
+        val endCal = calendar.clone() as Calendar
         endCal.time = dateFormat.parse(endDate)!!
 
-        val dateLabelFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
-        val dayOnlyFormat = SimpleDateFormat("d", Locale.getDefault())
         var dayIndex = 0
         val result = mutableListOf<Pair<String, Long>>()
         while (!cal.after(endCal)) {
@@ -145,7 +157,7 @@ class AppDetailViewModel @Inject constructor(
     }
 
     private fun getPastDaysRange(daysBack: Int): Pair<String, String> {
-        val cal = Calendar.getInstance()
+        val cal = calendar.clone() as Calendar
         val endDate = dateFormat.format(cal.time)
         cal.add(Calendar.DAY_OF_MONTH, -daysBack)
         val startDate = dateFormat.format(cal.time)
