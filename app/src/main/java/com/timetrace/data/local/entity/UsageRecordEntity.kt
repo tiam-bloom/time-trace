@@ -15,5 +15,6 @@ data class UsageRecordEntity(
     val startTime: Long,
     val endTime: Long,
     val duration: Long,
-    val date: String
+    val date: String,
+    val isCompleted: Boolean = true
 )

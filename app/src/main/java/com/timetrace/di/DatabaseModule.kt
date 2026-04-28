@@ -25,7 +25,9 @@ object DatabaseModule {
             context,
             TimeTraceDatabase::class.java,
             "timetrace_database"
-        ).build()
+        )
+            .addMigrations(TimeTraceDatabase.MIGRATION_1_2)
+            .build()
     }
 
     @Provides

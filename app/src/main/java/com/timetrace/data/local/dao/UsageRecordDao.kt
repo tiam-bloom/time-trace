@@ -56,6 +56,9 @@ interface UsageRecordDao {
     @Query("SELECT * FROM usage_record WHERE packageName = :packageName AND startTime = :startTime")
     suspend fun getRecordByPackageAndStartTime(packageName: String, startTime: Long): UsageRecordEntity?
 
+    @Query("UPDATE usage_record SET endTime = :endTime, duration = :duration, isCompleted = :isCompleted WHERE packageName = :packageName AND startTime = :startTime")
+    suspend fun updateRecord(packageName: String, startTime: Long, endTime: Long, duration: Long, isCompleted: Boolean): Int
+
     @Query("SELECT SUM(duration) FROM usage_record WHERE date = :date")
     fun getTotalUsageTimeByDate(date: String): Flow<Long?>
 
@@ -77,6 +80,27 @@ interface UsageRecordDao {
     """)
     fun getPackageDailyTotals(packageName: String, startDate: String, endDate: String): Flow<List<DailyTotal>>
 
+    @Query("""
+        SELECT packageName, COUNT(*) as launchCount
+        FROM usage_record
+        WHERE date = :date
+        GROUP BY packageName
+        ORDER BY launchCount DESC
+    """)
+    fun getDailyLaunchSummary(date: String): Flow<List<PackageLaunchCount>>
+
+    @Query("""
+        SELECT packageName, COUNT(*) as launchCount
+        FROM usage_record
+        WHERE date BETWEEN :startDate AND :endDate
+        GROUP BY packageName
+        ORDER BY launchCount DESC
+    """)
+    fun getWeeklyLaunchSummary(startDate: String, endDate: String): Flow<List<PackageLaunchCount>>
+
+    @Query("SELECT COUNT(*) FROM usage_record WHERE date = :date")
+    fun getTotalLaunchesByDate(date: String): Flow<Int>
+
     @Query("DELETE FROM usage_record")
     suspend fun deleteAll()
 }
@@ -89,4 +113,9 @@ data class PackageDuration(
 data class DailyTotal(
     val date: String,
     val totalDuration: Long
+)
+
+data class PackageLaunchCount(
+    val packageName: String,
+    val launchCount: Int
 )

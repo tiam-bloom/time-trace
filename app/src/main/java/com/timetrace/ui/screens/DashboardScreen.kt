@@ -124,10 +124,21 @@ fun DashboardScreen(
                     }
 
                     item {
-                        StatCard(
-                            title = "点击次数",
-                            value = "${uiState.todayClicks}"
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            StatCard(
+                                title = "启动次数",
+                                value = "${uiState.todayLaunches}",
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatCard(
+                                title = "点击次数",
+                                value = "${uiState.todayClicks}",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
 
                     if (uiState.topApps.isNotEmpty()) {

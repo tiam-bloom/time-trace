@@ -31,6 +31,7 @@ data class DashboardUiState(
     val todayUsageTime: Long = 0,
     val todayClicks: Int = 0,
     val todayUnlocks: Int = 0,
+    val todayLaunches: Int = 0,
     val topApps: List<AppUsageInfo> = emptyList(),
     val isLoading: Boolean = true,
     val hasUsagePermission: Boolean = false,
@@ -61,13 +62,6 @@ class DashboardViewModel @Inject constructor(
     fun refreshData() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isRefreshing = true)
-            if (usageStatsService.hasUsageStatsPermission()) {
-                try {
-                    usageStatsService.collectUsageStats()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
             appRepository.refreshAllAppNames()
             appNameCache.clear()
             loadDashboardData()
@@ -83,14 +77,21 @@ class DashboardViewModel @Inject constructor(
                 usageRepository.getTotalUsageTimeByDate(today),
                 clickRepository.getTotalClicksByDate(today),
                 unlockRepository.getUnlockCountByDate(today),
-                usageRepository.getTopApps(today, 5)
-            ) { usageTime, clicks, unlocks, topApps ->
+                combine(
+                    usageRepository.getTopApps(today, 5),
+                    usageRepository.getDailyLaunchSummary(today)
+                ) { topApps, launchSummary -> topApps to launchSummary },
+                usageRepository.getTotalLaunchesByDate(today)
+            ) { usageTime, clicks, unlocks, topAppsPair, launches ->
                 withContext(Dispatchers.Default) {
+                    val (topApps, launchSummary) = topAppsPair
+                    val launchMap = launchSummary.associate { it.packageName to it.launchCount }
                     DashboardUiState(
                         todayUsageTime = usageTime ?: 0,
                         todayClicks = clicks,
                         todayUnlocks = unlocks,
-                        topApps = topApps.map { it.toAppUsageInfo() },
+                        todayLaunches = launches,
+                        topApps = topApps.map { it.toAppUsageInfo(launchMap) },
                         isLoading = false,
                         hasUsagePermission = hasPermission
                     )
@@ -101,7 +102,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private suspend fun PackageDuration.toAppUsageInfo(): AppUsageInfo {
+    private suspend fun PackageDuration.toAppUsageInfo(launchMap: Map<String, Int>): AppUsageInfo {
         val app = appRepository.getAppByPackage(packageName)
         val appName = if (app != null && app.appName != app.packageName) {
             app.appName
@@ -115,6 +116,7 @@ class DashboardViewModel @Inject constructor(
             appName = appName,
             usageTime = totalDuration,
             clickCount = 0,
+            launchCount = launchMap[packageName] ?: 0,
             isUninstalled = app?.isUninstalled ?: false
         )
     }

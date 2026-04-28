@@ -68,45 +68,85 @@ class UsageStatsService @Inject constructor(
         var currentPackage: String? = null
         var foregroundStartTime: Long = 0
 
+        // background事件不立即关闭session，先记录下来
+        // 等下一个foreground事件判断：同APP内切页面 vs 真正切换APP
+        var pendingBackgroundPackage: String? = null
+        var pendingBackgroundTime: Long = 0
+
         for (event in sortedEvents) {
             val packageName = event.packageName
             if (packageName.isEmpty()) continue
 
             when (event.eventType) {
                 UsageEvents.Event.MOVE_TO_FOREGROUND -> {
-                    if (currentPackage != null && foregroundStartTime > 0) {
-                        val duration = event.timeMillis - foregroundStartTime
-                        if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
-                            saveUsageRecord(currentPackage, foregroundStartTime, event.timeMillis, duration)
+                    if (packageName == pendingBackgroundPackage
+                        && event.timeMillis - pendingBackgroundTime < 5000
+                    ) {
+                        // 同APP内切页面（5秒内同一APP又回到前台）：恢复session，不创建新记录
+                        currentPackage = packageName
+                        // foregroundStartTime 保持原值不变
+                        pendingBackgroundPackage = null
+                        pendingBackgroundTime = 0
+                    } else {
+                        // 真正切换了APP：关闭旧session，开始新session
+                        if (pendingBackgroundPackage != null) {
+                            // 有未处理的background事件，关闭旧session
+                            if (foregroundStartTime > 0) {
+                                val duration = pendingBackgroundTime - foregroundStartTime
+                                if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
+                                    saveUsageRecord(pendingBackgroundPackage!!, foregroundStartTime, pendingBackgroundTime, duration, isCompleted = true)
+                                }
+                            }
+                            pendingBackgroundPackage = null
+                            pendingBackgroundTime = 0
+                        } else if (currentPackage != null && foregroundStartTime > 0) {
+                            // 事件丢失：没有收到当前应用的background，但新的foreground已到来
+                            // 用新事件时间作为近似结束时间，避免session丢失
+                            val duration = event.timeMillis - foregroundStartTime
+                            if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
+                                saveUsageRecord(currentPackage!!, foregroundStartTime, event.timeMillis, duration, isCompleted = true)
+                            }
                         }
+                        currentPackage = packageName
+                        foregroundStartTime = event.timeMillis
                     }
-                    currentPackage = packageName
-                    foregroundStartTime = event.timeMillis
                 }
 
                 UsageEvents.Event.MOVE_TO_BACKGROUND -> {
                     if (packageName == currentPackage && foregroundStartTime > 0) {
-                        val duration = event.timeMillis - foregroundStartTime
-                        if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
-                            saveUsageRecord(packageName, foregroundStartTime, event.timeMillis, duration)
-                        }
+                        // 暂记background事件，不关闭session
+                        pendingBackgroundPackage = packageName
+                        pendingBackgroundTime = event.timeMillis
                         currentPackage = null
-                        foregroundStartTime = 0
                     }
                 }
             }
         }
 
-        if (currentPackage != null && foregroundStartTime > 0) {
+        // 处理未关闭的session
+        if (pendingBackgroundPackage != null && foregroundStartTime > 0) {
+            // 最后一个事件是background，正常关闭session
+            val duration = pendingBackgroundTime - foregroundStartTime
+            if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
+                saveUsageRecord(pendingBackgroundPackage!!, foregroundStartTime, pendingBackgroundTime, duration, isCompleted = true)
+            }
+        } else if (currentPackage != null && foregroundStartTime > 0) {
+            // 最后一个事件是foreground（APP仍在前台），保存为进行中状态
             val now = System.currentTimeMillis()
             val duration = now - foregroundStartTime
             if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
-                saveUsageRecord(currentPackage, foregroundStartTime, now, duration)
+                saveUsageRecord(currentPackage, foregroundStartTime, now, duration, isCompleted = false)
             }
         }
     }
 
-    private suspend fun saveUsageRecord(packageName: String, startTime: Long, endTime: Long, duration: Long) {
+    private suspend fun saveUsageRecord(
+        packageName: String,
+        startTime: Long,
+        endTime: Long,
+        duration: Long,
+        isCompleted: Boolean
+    ) {
         try {
             val appName = getAppName(packageName)
             val date = dateFormat.format(Date(startTime))
@@ -118,7 +158,8 @@ class UsageStatsService @Inject constructor(
                 startTime = startTime,
                 endTime = endTime,
                 duration = duration,
-                date = date
+                date = date,
+                isCompleted = isCompleted
             )
             usageRepository.upsertRecord(record)
         } catch (e: Exception) {

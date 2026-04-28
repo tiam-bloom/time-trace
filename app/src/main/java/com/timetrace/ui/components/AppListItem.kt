@@ -136,8 +136,14 @@ private fun AppListItemContent(app: AppUsageInfo, rank: Int?) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            val subtitle = buildString {
+                append(formatUsageTime(app.usageTime))
+                if (app.launchCount > 0) {
+                    append(" · 启动${app.launchCount}次")
+                }
+            }
             Text(
-                text = formatUsageTime(app.usageTime),
+                text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

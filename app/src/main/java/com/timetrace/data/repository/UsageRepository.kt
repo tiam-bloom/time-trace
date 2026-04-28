@@ -2,6 +2,7 @@ package com.timetrace.data.repository
 
 import com.timetrace.data.local.dao.DailyTotal
 import com.timetrace.data.local.dao.PackageDuration
+import com.timetrace.data.local.dao.PackageLaunchCount
 import com.timetrace.data.local.dao.UsageRecordDao
 import com.timetrace.data.local.entity.UsageRecordEntity
 import kotlinx.coroutines.flow.Flow
@@ -49,6 +50,18 @@ class UsageRepository @Inject constructor(
         return usageRecordDao.getTotalUsageTimeByDate(date)
     }
 
+    fun getDailyLaunchSummary(date: String): Flow<List<PackageLaunchCount>> {
+        return usageRecordDao.getDailyLaunchSummary(date)
+    }
+
+    fun getWeeklyLaunchSummary(startDate: String, endDate: String): Flow<List<PackageLaunchCount>> {
+        return usageRecordDao.getWeeklyLaunchSummary(startDate, endDate)
+    }
+
+    fun getTotalLaunchesByDate(date: String): Flow<Int> {
+        return usageRecordDao.getTotalLaunchesByDate(date)
+    }
+
     suspend fun insertRecord(record: UsageRecordEntity): Long {
         return usageRecordDao.insertRecord(record)
     }
@@ -64,6 +77,15 @@ class UsageRepository @Inject constructor(
     suspend fun upsertRecord(record: UsageRecordEntity): Long {
         val existing = usageRecordDao.getRecordByPackageAndStartTime(record.packageName, record.startTime)
         return if (existing != null) {
+            if (!existing.isCompleted) {
+                usageRecordDao.updateRecord(
+                    packageName = record.packageName,
+                    startTime = record.startTime,
+                    endTime = record.endTime,
+                    duration = record.duration,
+                    isCompleted = record.isCompleted
+                )
+            }
             existing.id
         } else {
             usageRecordDao.insertRecord(record)

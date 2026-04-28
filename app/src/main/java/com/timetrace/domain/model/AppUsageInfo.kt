@@ -8,5 +8,6 @@ data class AppUsageInfo(
     val appName: String,
     val usageTime: Long,
     val clickCount: Int,
+    val launchCount: Int = 0,
     val isUninstalled: Boolean = false
 )
