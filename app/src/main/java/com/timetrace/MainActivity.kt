@@ -6,11 +6,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -67,10 +69,16 @@ fun TimeTraceMainScreen() {
             unselectedIcon = Icons.Outlined.Home
         ),
         BottomNavItem(
+            screen = Screen.Stats,
+            label = "统计",
+            selectedIcon = Icons.AutoMirrored.Filled.ShowChart,
+            unselectedIcon = Icons.AutoMirrored.Outlined.ShowChart
+        ),
+        BottomNavItem(
             screen = Screen.AppList,
             label = "应用",
-            selectedIcon = Icons.Filled.List,
-            unselectedIcon = Icons.Outlined.List
+            selectedIcon = Icons.AutoMirrored.Filled.List,
+            unselectedIcon = Icons.AutoMirrored.Outlined.List
         ),
         BottomNavItem(
             screen = Screen.Settings,

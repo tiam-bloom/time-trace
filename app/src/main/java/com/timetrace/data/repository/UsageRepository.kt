@@ -1,5 +1,6 @@
 package com.timetrace.data.repository
 
+import com.timetrace.data.local.dao.DailyTotal
 import com.timetrace.data.local.dao.PackageDuration
 import com.timetrace.data.local.dao.UsageRecordDao
 import com.timetrace.data.local.entity.UsageRecordEntity
@@ -34,6 +35,10 @@ class UsageRepository @Inject constructor(
 
     fun getTopApps(date: String, limit: Int = 10): Flow<List<PackageDuration>> {
         return usageRecordDao.getTopApps(date, limit)
+    }
+
+    fun getDailyTotals(startDate: String, endDate: String): Flow<List<DailyTotal>> {
+        return usageRecordDao.getDailyTotals(startDate, endDate)
     }
 
     fun getTotalUsageTimeByDate(date: String): Flow<Long?> {

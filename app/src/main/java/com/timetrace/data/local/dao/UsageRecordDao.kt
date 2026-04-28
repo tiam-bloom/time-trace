@@ -59,11 +59,25 @@ interface UsageRecordDao {
     @Query("SELECT SUM(duration) FROM usage_record WHERE date = :date")
     fun getTotalUsageTimeByDate(date: String): Flow<Long?>
 
+    @Query("""
+        SELECT date, SUM(duration) as totalDuration
+        FROM usage_record
+        WHERE date BETWEEN :startDate AND :endDate
+        GROUP BY date
+        ORDER BY date ASC
+    """)
+    fun getDailyTotals(startDate: String, endDate: String): Flow<List<DailyTotal>>
+
     @Query("DELETE FROM usage_record")
     suspend fun deleteAll()
 }
 
 data class PackageDuration(
     val packageName: String,
+    val totalDuration: Long
+)
+
+data class DailyTotal(
+    val date: String,
     val totalDuration: Long
 )

@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import com.timetrace.ui.screens.AppListScreen
 import com.timetrace.ui.screens.DashboardScreen
 import com.timetrace.ui.screens.SettingsScreen
+import com.timetrace.ui.screens.StatsScreen
 
 @Composable
 fun TimeTraceNavHost(
@@ -18,6 +19,9 @@ fun TimeTraceNavHost(
     ) {
         composable(Screen.Dashboard.route) {
             DashboardScreen()
+        }
+        composable(Screen.Stats.route) {
+            StatsScreen()
         }
         composable(Screen.AppList.route) {
             AppListScreen()
