@@ -104,7 +104,7 @@ fun StatsScreen(
                         val barWidth = when (uiState.selectedPeriod) {
                             StatsPeriod.DAY -> 20.dp
                             StatsPeriod.WEEK -> 40.dp
-                            StatsPeriod.MONTH -> 10.dp
+                            StatsPeriod.MONTH -> 12.dp
                         }
 
                         SimpleBarChart(

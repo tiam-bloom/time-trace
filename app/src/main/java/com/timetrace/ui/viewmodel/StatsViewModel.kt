@@ -100,12 +100,14 @@ class StatsViewModel @Inject constructor(
 
     private fun loadRangeData(range: Pair<String, String>) {
         val (startDate, endDate) = range
+        val isMonth = _uiState.value.selectedPeriod == StatsPeriod.MONTH
+        val labelInterval = if (isMonth) 5 else 1
         viewModelScope.launch {
             combine(
                 usageRepository.getDailyTotals(startDate, endDate),
                 usageRepository.getWeeklyUsageSummary(startDate, endDate)
             ) { dailyTotals, packageDurations ->
-                val chartData = fillMissingDates(dailyTotals, startDate, endDate)
+                val chartData = fillMissingDates(dailyTotals, startDate, endDate, labelInterval)
                 val total = chartData.sumOf { it.second }
                 val days = chartData.size
                 val appList = packageDurations.map { it.toAppUsageInfo() }
@@ -126,7 +128,8 @@ class StatsViewModel @Inject constructor(
     private fun fillMissingDates(
         dailyTotals: List<DailyTotal>,
         startDate: String,
-        endDate: String
+        endDate: String,
+        labelInterval: Int = 1
     ): List<Pair<String, Long>> {
         val dataMap = dailyTotals.associate { it.date to it.totalDuration }
         val cal = Calendar.getInstance()
@@ -135,12 +138,19 @@ class StatsViewModel @Inject constructor(
         endCal.time = dateFormat.parse(endDate)!!
 
         val dateLabelFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
+        val dayOnlyFormat = SimpleDateFormat("d", Locale.getDefault())
+        var dayIndex = 0
         val result = mutableListOf<Pair<String, Long>>()
         while (!cal.after(endCal)) {
             val dateStr = dateFormat.format(cal.time)
-            val label = dateLabelFormat.format(cal.time)
+            val label = if (labelInterval > 1) {
+                if (dayIndex % labelInterval == 0) dayOnlyFormat.format(cal.time) else ""
+            } else {
+                dateLabelFormat.format(cal.time)
+            }
             result.add(label to (dataMap[dateStr] ?: 0))
             cal.add(Calendar.DAY_OF_MONTH, 1)
+            dayIndex++
         }
         return result
     }
