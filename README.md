@@ -46,6 +46,18 @@
 ./gradlew assembleDebug
 ```
 
+## 打包
+```bash
+# Release APK                                                                                                                                                               
+./gradlew :app:assembleRelease                                                                                                                                              
+                                                                                                                                                                          
+# Release AAB (Google Play)                                                                                                                                                 
+./gradlew :app:bundleRelease   
+```
+输出位置：
+- APK：app/build/outputs/apk/release/app-release.apk
+- AAB：app/build/outputs/bundle/release/app-release.aab
+
 ## License
 
 MIT
